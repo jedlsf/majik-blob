@@ -6,6 +6,10 @@
   "author": "Zelijah",
   "type": "commonjs",
   "main": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jedlsf/majik-blob.git"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
