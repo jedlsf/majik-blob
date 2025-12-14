@@ -1,6 +1,6 @@
 {
   "name": "@thezelijah/majik-blob",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Majik Blob is a lightweight TypeScript/JavaScript library for securely encrypting and decrypting files (Blobs). Ideal for obfuscating files before storing or transmitting, preserving file type and extension, and preventing unauthorized access.",
   "license": "ISC",
   "author": "Zelijah",

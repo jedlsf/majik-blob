@@ -9,7 +9,7 @@ It’s ideal for scenarios where you want to **store files in cloud storage or d
 
 [![Majik Blob Thumbnail](https://www.thezelijah.world/_next/static/media/WA_Tools_Security_MajikBlob.ace9d387.webp)](https://www.thezelijah.world/tools/security-majik-blob)
 
-> Click the image to try the smart tax assistant.
+> Click the image to try Majik Blob.
 
 ---
 
