@@ -10,6 +10,19 @@
     "type": "git",
     "url": "git+https://github.com/jedlsf/majik-blob.git"
   },
+  "keywords": [
+    "encryption",
+    "decryption",
+    "blob",
+    "file-security",
+    "typescript",
+    "javascript",
+    "obfuscation"
+  ],
+  "homepage": "https://github.com/jedlsf/majik-blob#readme",
+  "bugs": {
+    "url": "https://github.com/jedlsf/majik-blob/issues"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
