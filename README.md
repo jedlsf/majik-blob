@@ -18,9 +18,9 @@ It’s ideal for scenarios where you want to **store files in cloud storage or d
 - 🔐 Encrypt **any file type** (images, audio, video, 3D models, documents, etc.)
 - 📦 Returns a single encrypted Blob (`.mjkb`) with metadata for integrity verification
 - 🧾 Preserves original MIME type & file extension
-- 🧪 Includes tamper detection and password verification
-- 🔁 Fully reversible with the correct key and RQX
-- ⚡ Perfect for **obfuscating files stored on cloud storage or S3**
+- 🧪 Tamper detection and password verification
+- ⚡ Fully reversible with the correct key and RQX
+- 💨 Optional compression to reduce file size before encryption
 - 🌐 Browser-first, TypeScript-friendly
 
 ---
@@ -48,6 +48,7 @@ const { key, rqx } = MajikBlob.generateKey(32); // 32-character password
 
 
 ### Encrypting Files
+Optionally compress files before encryption to reduce size:
 ```bash
 import { MajikBlob } from "@thezelijah/majik-blob";
 import { downloadBlob } from "@thezelijah/majik-blob/utils";
@@ -55,7 +56,7 @@ import { downloadBlob } from "@thezelijah/majik-blob/utils";
 const file = new File(["Hello world"], "example.txt", { type: "text/plain" });
 
 const majik = new MajikBlob(key, file);
-const encryptedBlob = await majik.getEncryptedBlob(rqx);
+const encryptedBlob = await majik.getEncryptedBlob(rqx, true); // true enables compression
 
 // Save or upload the encrypted file
 downloadBlob(encryptedBlob, "mjkb", "example");
@@ -99,7 +100,8 @@ console.log(extension); // e.g. "glb", "mp3", "png"
 - Store un-hashed password/key in environment variables to prevent tampering.
 - Majik Blob is ideal for obfuscating files in storage; files cannot be opened without the correct key.
 - Always verify the key before decrypting to avoid corrupted files.
-- For large files, encryption and decryption may take longer—be patient.
+- Compression is optional but recommended for large files.
+- AES-GCM ensures tamper detection and secure encryption.
 
 **Important:**
 Always store the un-hashed encryption key and RQX in environment variables to prevent tampering and accidental exposure.
@@ -119,7 +121,7 @@ Contributions, bug reports, and suggestions are welcome! Feel free to fork and o
 
 ## Author
 
-Made with 💙 by [@thezelijah](https://github.com/thezelijah)
+Made with 💙 by [@thezelijah](https://github.com/jedlsf)
 
 
 ## About the Developer
@@ -134,5 +136,14 @@ Made with 💙 by [@thezelijah](https://github.com/thezelijah)
 
 - **Business Email**: [business@thezelijah.world](mailto:business@thezelijah.world)  
 - **Official Website**: [https://www.thezelijah.world](https://www.thezelijah.world)  
+
+---
+
+
+✅ **What’s new in this version:**
+1. Highlights **AES-256-GCM encryption** with random IVs (replaced Fernet).
+2. Mentions **optional compression** for smaller encrypted files.
+3. Clarifies **integrity checks** and tamper detection.
+4. Updated usage examples to include compression parameter.
 
 ---

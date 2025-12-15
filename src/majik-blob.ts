@@ -1,4 +1,3 @@
-import fernet from "fernet";
 
 import {
     appendStrings,
@@ -7,6 +6,11 @@ import {
     secureTimecode,
 } from "./utils";
 import { customAlphabet } from "nanoid";
+import { AESGCMEncrypted, MajikEncryption } from "./majik-encryption";
+import {
+    majikCompress,
+    majikDecompress
+} from "./majik-compress";
 
 /* =======================
    Types
@@ -31,7 +35,14 @@ export interface MajikEncryptedPayload {
     /** Original MIME type */
     type: string;
 
+    /**File extension */
     extension: string;
+
+    /**IV Nonce for AES-GCM */
+    i: string;
+
+    /**Compression settings */
+    c?: boolean
 }
 
 export interface MajikDecryptedPayload {
@@ -78,25 +89,35 @@ export class MajikBlob {
     ======================= */
 
     /** Returns encrypted Blob ready for download */
-    async getEncryptedBlob(rqx: string): Promise<Blob> {
+    async getEncryptedBlob(rqx: string, compress: boolean = false): Promise<Blob> {
         const arrayBuffer = await this.file.arrayBuffer();
-        const binary = this.arrayBufferToBase64(arrayBuffer);
+        let bytes: Uint8Array = new Uint8Array(arrayBuffer);
+
+        if (compress) {
+            bytes = await majikCompress(bytes);
+        }
+
+
+        const rqc = MajikBlob.decodeRQX(rqx);
+        const keyBytes = new Uint8Array(Buffer.from(rqc, "base64"));
+
+        const encryptedObj: AESGCMEncrypted = MajikEncryption.encrypt(bytes, keyBytes);
+
 
         const stx = secureTimecode();
         const rootHash = this.generateRootHash(stx);
 
-        const rqc = MajikBlob.decodeRQX(rqx);
-
-        const encrypted = MajikBlob.encrypt(binary, rqc);
 
         const payload: MajikEncryptedPayload = {
-            data: encrypted,
+            data: Buffer.from(encryptedObj.cipher).toString("base64"),
+            i: Buffer.from(encryptedObj.iv).toString("base64"),
             r: rootHash,
             s: stx,
             sh: hashString(stx),
             h: this.keyHash,
             type: this.file.type || "application/octet-stream",
-            extension: this.extension
+            extension: this.extension,
+            c: compress || false
         };
 
         return new Blob([JSON.stringify(payload)], {
@@ -116,16 +137,33 @@ export class MajikBlob {
         this.validatePayload(payload, key);
 
         const rqc = this.decodeRQX(rqx);
+        const keyBytes = new Uint8Array(Buffer.from(rqc, "base64"));
 
-        const decryptedBase64 = this.decrypt(payload.data, rqc);
+        const encryptedObj: AESGCMEncrypted = {
+            rqc: keyBytes,
+            iv: new Uint8Array(Buffer.from(payload.i, "base64")),
+            cipher: new Uint8Array(Buffer.from(payload.data, "base64"))
+        };
 
-        const buffer = this.base64ToArrayBuffer(decryptedBase64);
+        let bytes: Uint8Array = MajikEncryption.decrypt(encryptedObj);
+
+        if (payload.c) {
+            bytes = await majikDecompress(bytes);
+        }
+
+        // Convert any buffer to a standard ArrayBuffer for Blob
+        const arrayBuffer: ArrayBuffer = bytes.buffer instanceof ArrayBuffer
+            ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+            : new Uint8Array(bytes).buffer;
+
+        const blobData = new Uint8Array(arrayBuffer, 0, bytes.byteLength);
 
         const decryptedPayload: MajikDecryptedPayload = {
-            data: new Blob([buffer], { type: payload.type }),
+            data: new Blob([blobData], { type: payload.type }),
             extension: payload.extension,
             type: payload.type
-        }
+        };
+
         return decryptedPayload;
     }
 
@@ -212,26 +250,6 @@ export class MajikBlob {
             throw new Error("Encrypted blob tampered.");
     }
 
-    /* =======================
-       Fernet Crypto
-    ======================= */
-
-    private static encrypt(data: string, rqc: string): string {
-        const token = new fernet.Token({
-            secret: new fernet.Secret(rqc),
-            ttl: 0
-        });
-        return token.encode(data);
-    }
-
-    private static decrypt(token: string, rqc: string): string {
-        const t = new fernet.Token({
-            secret: new fernet.Secret(rqc),
-            token,
-            ttl: 0
-        });
-        return t.decode();
-    }
 
     /* =======================
        RQC / RQX
@@ -239,7 +257,7 @@ export class MajikBlob {
 
     private static generateRQC(): string {
         const bytes = crypto.getRandomValues(new Uint8Array(32));
-        return btoa(String.fromCharCode(...bytes));
+        return Buffer.from(bytes).toString("base64");
     }
 
     private static generateRQX(rqc?: string): string {
@@ -249,7 +267,7 @@ export class MajikBlob {
         }
 
         // Decode the input rqc to bytes
-        const rqcBytes = Uint8Array.from(atob(rqc), (c) => c.charCodeAt(0)); // Decode base64 to byte array
+        const rqcBytes = Uint8Array.from(Buffer.from(rqc, "base64"));
         const intArray = Array.from(rqcBytes);
 
         // Reverse the array
@@ -262,11 +280,12 @@ export class MajikBlob {
         }
 
         // Convert the interleaved array to a base64 string and return
-        return btoa(String.fromCharCode(...interleavedArray)); // Convert the byte array to base64 string
+        return Buffer.from(interleavedArray).toString("base64");
     }
 
     private static decodeRQX(rqx: string): string {
-        const bytes = Uint8Array.from(atob(rqx), c => c.charCodeAt(0));
+        const bytes = Uint8Array.from(Buffer.from(rqx, "base64"));
+
         const original: number[] = [];
         const reversed: number[] = [];
 
@@ -278,36 +297,10 @@ export class MajikBlob {
         if (reversed.join() !== [...original].reverse().join())
             throw new Error("Invalid RQX key.");
 
-        return btoa(String.fromCharCode(...original));
-    }
-
-    /* =======================
-       Binary Helpers
-    ======================= */
-
-    private arrayBufferToBase64(buffer: ArrayBuffer): string {
-        const bytes = new Uint8Array(buffer);
-        const chunkSize = 0x8000; // 32KB chunks
-        let binary = "";
-
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-            binary += String.fromCharCode(
-                ...bytes.subarray(i, i + chunkSize)
-            );
-        }
-
-        return btoa(binary);
+        return Buffer.from(original).toString("base64");
     }
 
 
-    private static base64ToArrayBuffer(base64: string): ArrayBuffer {
-        const bin = atob(base64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) {
-            bytes[i] = bin.charCodeAt(i);
-        }
-        return bytes.buffer;
-    }
 }
 
 
